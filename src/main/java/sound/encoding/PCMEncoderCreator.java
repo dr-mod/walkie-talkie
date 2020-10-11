@@ -6,14 +6,14 @@ public class PCMEncoderCreator extends EncoderCreator {
 
     @Override
     public Encoder getEncoder(Quality quality) {
-        int frameRate;
+        int sampleRate;
         switch (quality) {
-            case LOW: frameRate = 8000; break;
-            case MID: frameRate = 16000; break;
-            case HIGH: frameRate = 32000; break;
-            default: frameRate = 8000; break;
+            case LOW: sampleRate = 8000; break;
+            case MID: sampleRate = 16000; break;
+            case HIGH: sampleRate = 32000; break;
+            default: sampleRate = 8000; break;
         }
-        AudioFormat audioFormat = new AudioFormat(frameRate, 16, 1, true, false);
+        AudioFormat audioFormat = new AudioFormat(sampleRate, 16, 1, true, false);
         return new Encoder(audioFormat);
     }
 }

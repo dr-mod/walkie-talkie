@@ -1,14 +1,15 @@
 import config.Configuration;
-import latency.CutthroatInputStream;
+import network.DataReceiver;
 import org.apache.commons.cli.*;
 import security.EncryptionLayer;
 import sound.AudioHelper;
 import sound.AudioIOAcquirer;
 import sound.SoundAcquirer;
-import sound.SoundProducer;
+import sound.SoundConsumer;
 import sound.encoding.Codec;
 import sound.encoding.Encoder;
 import sound.encoding.EncoderCreator;
+import util.RingBuffer;
 
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
@@ -68,7 +69,7 @@ public class Application {
         Encoder encoder = encoderCreator.getEncoder(configuration.getQuality());
 
         AudioFormat originalAudioFormat = encoder.getOriginalAudioFormat();
-        AudioIOAcquirer audioIOAcquirer = new AudioIOAcquirer(originalAudioFormat);
+        AudioIOAcquirer audioIOAcquirer = new AudioIOAcquirer(originalAudioFormat, configuration);
 
         String microphoneName = configuration.getMicrophoneName();
         TargetDataLine microphone = microphoneName == null ? audioIOAcquirer.getMicrophone() : audioIOAcquirer.getMicrophone(microphoneName);
@@ -100,10 +101,12 @@ public class Application {
 
         InputStream inputStream = encryptionLayer.secureInputStream(socket.getInputStream());
         AudioInputStream receivingAudio = encoder.receiving(inputStream);
-        CutthroatInputStream cutthroatInputStream = new CutthroatInputStream(receivingAudio, configuration.getMaxReceiverBufferSize());
 
-        new SoundAcquirer(microphone, microphoneInputStream, outputStream, configuration.getBufferSize()).start();
-        new SoundProducer(speakers, cutthroatInputStream, configuration.getBufferSize()).start();
+        RingBuffer ringBuffer = new RingBuffer(configuration.getRingBufferSize());
+        new DataReceiver(ringBuffer, receivingAudio).start();
+
+        new SoundAcquirer(microphone, microphoneInputStream, outputStream, configuration).start();
+        new SoundConsumer(speakers, ringBuffer, configuration).start();
     }
 
     private static Options getOptions() {

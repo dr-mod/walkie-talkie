@@ -17,7 +17,11 @@ public class Configuration {
     private Quality quality;
     private char[] password;
     private int bufferSize;
-    private int maxReceiverBufferSize;
+    private int microphoneBufferSize;
+    private int speakersBufferSize;
+    private int ringBufferSize;
+    private int soundThreshold;
+    private boolean emptyFrame;
 
     public Configuration(InputStream inputStream) {
         Properties properties = new Properties();
@@ -46,15 +50,27 @@ public class Configuration {
                         .filter(codec -> codec.name().equalsIgnoreCase(it))
                         .findFirst())
                 .orElse(Quality.MID);
+        this.soundThreshold = Optional.ofNullable(properties.getProperty("audio.threshold"))
+                .map(Integer::parseInt)
+                .orElse(500);
         this.password = Optional.ofNullable(properties.getProperty("security.password"))
                 .map(String::toCharArray)
                 .orElseThrow(() -> new RuntimeException("Password is not provided"));
         this.bufferSize = Optional.ofNullable(properties.getProperty("io.buffer.size"))
                 .map(Integer::parseInt)
                 .orElse(50);
-        this.maxReceiverBufferSize = Optional.ofNullable(properties.getProperty("io.buffer.cutoff"))
+        this.microphoneBufferSize = Optional.ofNullable(properties.getProperty("io.buffer.microphone"))
                 .map(Integer::parseInt)
-                .orElse(13000);
+                .orElse(512);
+        this.speakersBufferSize = Optional.ofNullable(properties.getProperty("io.buffer.speakers"))
+                .map(Integer::parseInt)
+                .orElse(512);
+        this.ringBufferSize = Optional.ofNullable(properties.getProperty("io.buffer.ring"))
+                .map(Integer::parseInt)
+                .orElse(512);
+        this.emptyFrame = Optional.ofNullable(properties.getProperty("audio.empty-frame"))
+                .map(Boolean::parseBoolean)
+                .orElse(false);
     }
 
     public String getMicrophoneName() {
@@ -81,7 +97,23 @@ public class Configuration {
         return bufferSize;
     }
 
-    public int getMaxReceiverBufferSize() {
-        return maxReceiverBufferSize;
+    public int getMicrophoneBufferSize() {
+        return microphoneBufferSize;
+    }
+
+    public int getSpeakersBufferSize() {
+        return speakersBufferSize;
+    }
+
+    public int getRingBufferSize() {
+        return ringBufferSize;
+    }
+
+    public int getSoundThreshold() {
+        return soundThreshold;
+    }
+
+    public boolean isEmptyFrame() {
+        return emptyFrame;
     }
 }
