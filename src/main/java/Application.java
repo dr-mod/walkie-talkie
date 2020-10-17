@@ -102,8 +102,8 @@ public class Application {
         InputStream inputStream = encryptionLayer.secureInputStream(socket.getInputStream());
         AudioInputStream receivingAudio = encoder.receiving(inputStream);
 
-        RingBuffer ringBuffer = new RingBuffer(configuration.getRingBufferSize());
-        new DataReceiver(ringBuffer, receivingAudio).start();
+        RingBuffer ringBuffer = new RingBuffer(configuration.getRingBufferSize(), configuration.getBufferSize());
+        new DataReceiver(ringBuffer, receivingAudio, configuration).start();
 
         new SoundAcquirer(microphone, microphoneInputStream, outputStream, configuration).start();
         new SoundConsumer(speakers, ringBuffer, configuration).start();

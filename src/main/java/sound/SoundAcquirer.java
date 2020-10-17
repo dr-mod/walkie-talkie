@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class SoundAcquirer extends Thread {
     private final TargetDataLine microphoneInput;
@@ -28,7 +29,8 @@ public class SoundAcquirer extends Thread {
             byte[] buffer = new byte[configuration.getBufferSize()];
             int audioThreshHold = configuration.getSoundThreshold();
 
-            ByteBuffer bb = ByteBuffer.allocate(buffer.length);
+            ByteBuffer bb = ByteBuffer.allocate(buffer.length).order(ByteOrder.LITTLE_ENDIAN);
+//            int inaudibleCount = 0;
             while (true) {
                 int count = inputStream.read(buffer);
 
@@ -43,14 +45,11 @@ public class SoundAcquirer extends Thread {
                         break;
                     }
                 }
+//                inaudibleCount = (audible) ? 0 : inaudibleCount + 1;
 
                 if (audible) {
                     networkOutputStream.write(buffer, 0, count);
                 }
-//                else {
-//                    System.out.println("nope");
-//                }
-
             }
 
         } catch (IOException e) {

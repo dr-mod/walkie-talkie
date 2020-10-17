@@ -4,57 +4,63 @@ package util;
 public class RingBuffer {
     private final byte[] buffer;
     private final int capacity;
+    private final int blockAvailability;
 
     private int available;
-    private int idxGet;
-    private int idxPut;
+    private int idGet;
+    private int idPut;
 
     public RingBuffer() {
-        this(4096);
+        this(4096, 0);
     }
 
     public RingBuffer(int capacity) {
+        this(capacity, 0);
+    }
+
+    public RingBuffer(int capacity, int minAvailable) {
         this.capacity = capacity;
+        this.blockAvailability = minAvailable;
         buffer = new byte[this.capacity];
     }
 
     public synchronized void clear() {
-        idxGet = idxPut = available = 0;
+        idGet = idPut = available = 0;
     }
 
 
-    public synchronized int get() {
-        if (available == 0) {
-            return -1;
+    public synchronized int get() throws InterruptedException {
+        if (available <= blockAvailability) {
+            this.wait();
         }
-        byte value = buffer[idxGet];
-        idxGet = (idxGet + 1) % capacity;
+        byte value = buffer[idGet];
+        idGet = (idGet + 1) % capacity;
         available--;
         return value;
     }
 
-    public int get(byte[] dst) {
+    public int get(byte[] dst) throws InterruptedException {
         return get(dst, 0, dst.length);
     }
 
-    public synchronized int get(byte[] dst, int off, int len) {
-        if (available == 0) {
-            return 0;
+    public synchronized int get(byte[] dst, int off, int len) throws InterruptedException {
+        if (available <= blockAvailability) {
+            this.wait();
         }
 
-        int limit = idxGet < idxPut ? idxPut : capacity;
-        int count = Math.min(limit - idxGet, len);
-        System.arraycopy(buffer, idxGet, dst, off, count);
-        idxGet += count;
+        int limit = idGet < idPut ? idPut : capacity;
+        int count = Math.min(limit - idGet, len);
+        System.arraycopy(buffer, idGet, dst, off, count);
+        idGet += count;
 
-        if (idxGet == capacity) {
-            int count2 = Math.min(len - count, idxPut);
+        if (idGet == capacity) {
+            int count2 = Math.min(len - count, idPut);
             if (count2 > 0) {
                 System.arraycopy(buffer, 0, dst, off + count, count2);
-                idxGet = count2;
+                idGet = count2;
                 count += count2;
             } else {
-                idxGet = 0;
+                idGet = 0;
             }
         }
         available -= count;
@@ -62,12 +68,15 @@ public class RingBuffer {
     }
 
     public synchronized void put(byte value) {
-        buffer[idxPut] = value;
-        idxPut = (idxPut + 1) % capacity;
+        buffer[idPut] = value;
+        idPut = (idPut + 1) % capacity;
         if (available == capacity) {
-            idxGet++;
+            idGet++;
         } else {
             available++;
+        }
+        if (available > blockAvailability) {
+            this.notify();
         }
     }
 
@@ -81,43 +90,46 @@ public class RingBuffer {
         if (len > capacity) {
             adjLen = capacity;
             adjOff = len - capacity + off;
-        }
-        else {
+        } else {
             adjLen = len;
             adjOff = off;
         }
 
-        int count = Math.min(capacity - idxPut, adjLen);
-        System.arraycopy(src, adjOff, buffer, idxPut, count);
-        idxPut += count;
+        int count = Math.min(capacity - idPut, adjLen);
+        System.arraycopy(src, adjOff, buffer, idPut, count);
+        idPut += count;
 
-        if (idxPut == capacity) {
+        if (idPut == capacity) {
             int count2 = adjLen - count;
             if (count2 > 0) {
                 System.arraycopy(src, adjOff + count, buffer, 0, count2);
-                idxPut = count2;
+                idPut = count2;
                 count += count2;
             } else {
-                idxPut = 0;
+                idPut = 0;
             }
         }
         available += count;
 
         if (available > capacity) {
-            idxGet = idxPut;
+            idGet = idPut;
             available = capacity;
+        }
+
+        if (available > blockAvailability) {
+            this.notify();
         }
     }
 
     public synchronized int peek() {
-        return available > 0 ? buffer[idxGet] : -1;
+        return available > 0 ? buffer[idGet] : -1;
     }
 
     public synchronized int skip(int count) {
         if (count > available) {
             count = available;
         }
-        idxGet = (idxGet + count) % capacity;
+        idGet = (idGet + count) % capacity;
         available -= count;
         return count;
     }

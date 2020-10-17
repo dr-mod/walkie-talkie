@@ -4,6 +4,9 @@ import config.Configuration;
 import util.RingBuffer;
 
 import javax.sound.sampled.SourceDataLine;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
 
 public class SoundConsumer extends Thread {
     private final SourceDataLine sourceDataLine;
@@ -18,22 +21,30 @@ public class SoundConsumer extends Thread {
 
     @Override
     public void run() {
-        byte[] empty = {1, 0, 0, 0, 0, 0};
-        boolean emptyFrame = configuration.isEmptyFrame();
+        ArrayList<Integer> integers = new ArrayList<>();
         try {
             sourceDataLine.start();
             byte[] buffer = new byte[configuration.getBufferSize()];
+            ByteBuffer bb = ByteBuffer.allocate(buffer.length).order(ByteOrder.LITTLE_ENDIAN);
 
+
+            int offset = 0;
             while (true) {
-                int count = ringBuffer.get(buffer);
-                if (count == 0) {
-                    if (emptyFrame) {
-                        sourceDataLine.write(empty, 0, 6);
-                    } else {
-                        Thread.sleep(6);
-                    }
-                } else {
-                    sourceDataLine.write(buffer, 0, count);
+                int count = ringBuffer.get(buffer, offset, buffer.length - offset);
+                int bestPlaceToCut = findBestPlaceToCut(buffer, count + offset, bb);
+
+                sourceDataLine.write(buffer, 0, bestPlaceToCut);
+
+                offset = count + offset - bestPlaceToCut;
+                if (offset > 0) {
+                    System.arraycopy(buffer, bestPlaceToCut, buffer, 0, offset);
+                }
+
+
+                integers.add(bestPlaceToCut);
+                if (integers.size() > 1000) {
+                    integers.forEach(System.out::println);
+                    integers.clear();
                 }
             }
         } catch (Exception e) {
@@ -42,4 +53,29 @@ public class SoundConsumer extends Thread {
         }
 
     }
+
+    private int findBestPlaceToCut(byte[] buffer, int count, ByteBuffer bb) {
+        short[] shorts = new short[buffer.length / 2];
+        bb.clear();
+        bb.put(buffer, 0, count);
+        bb.rewind();
+
+        bb.asShortBuffer().get(shorts);
+
+        int cutPosition = count / 2;
+        for (int i = count / 2 - 1 - 1; i >= 0; i--) {
+            if (!sameSign(shorts[i + 1], shorts[i])) {
+                cutPosition = i;
+                break;
+            }
+        }
+
+        int byteResult = cutPosition * 2;
+        return byteResult > 0 ? byteResult : count;
+    }
+
+    boolean sameSign(int x, int y) {
+        return (x >= 0) ^ (y < 0);
+    }
+
 }
